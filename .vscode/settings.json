@@ -1,5 +1,4 @@
 {
-  "python-envs.pythonProjects": [],
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv",
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {

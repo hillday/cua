@@ -669,21 +669,22 @@ class WindowsAutomationHandler(BaseAutomationHandler):
         """Get the size of the screen in pixels.
 
         Returns:
-            Dict[str, Any]: A dictionary containing the success status and either
-                           screen size information or an error message.
-                           Structure: {"success": bool, "size": {"width": int, "height": int}} or
-                                    {"success": bool, "error": str}
+            Dict[str, Any]: A dictionary containing the success status and screen size.
+                           Structure: {"success": bool, "size": {"width": int, "height": int}}
         """
         try:
-            if WINDOWS_API_AVAILABLE:
-                width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
-                height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
-                return {"success": True, "size": {"width": width, "height": height}}
-            else:
-                # Fallback: use ImageGrab
-                img = ImageGrab.grab()
-                return {"success": True, "size": {"width": img.width, "height": img.height}}
+            # Use ImageGrab to ensure dimensions match the screenshot taken
+            img = ImageGrab.grab()
+            return {"success": True, "size": {"width": img.width, "height": img.height}}
         except Exception as e:
+            # Fallback to win32api if ImageGrab fails
+            try:
+                if WINDOWS_API_AVAILABLE:
+                    width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+                    height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+                    return {"success": True, "size": {"width": width, "height": height}}
+            except Exception:
+                pass
             return {"success": False, "error": str(e)}
 
     async def get_cursor_position(self) -> Dict[str, Any]:

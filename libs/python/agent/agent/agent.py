@@ -53,6 +53,40 @@ from .tools.base import BaseComputerTool, BaseTool
 from .types import AgentCapability, IllegalArgumentError, Messages, ToolError
 
 
+def robust_json_loads(s: str) -> Any:
+    """Attempt to parse JSON string, with common cleaning for LLM hallucinations."""
+    if not isinstance(s, str):
+        return s
+
+    s = s.strip()
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        # Try cleaning markdown code blocks
+        cleaned = s
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        elif cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+
+        cleaned = cleaned.strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            # If still failing, try to find the first '{' and last '}'
+            start = cleaned.find("{")
+            end = cleaned.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                try:
+                    return json.loads(cleaned[start : end + 1])
+                except json.JSONDecodeError:
+                    pass
+            raise
+
+
 def assert_callable_with(f, *args, **kwargs):
     """Check if function can be called with given arguments."""
     try:
@@ -790,7 +824,7 @@ class ComputerAgent:
                 # Special handling for "computer" function calls (from GPT 5.4 etc)
                 # These need to be treated like computer_call items
                 if item.get("name") == "computer" and computer:
-                    args = json.loads(item.get("arguments", "{}"))
+                    args = robust_json_loads(item.get("arguments", "{}"))
                     action_type = args.get("action")
                     if not action_type:
                         raise ToolError("Computer function call missing 'action' argument")
@@ -901,7 +935,7 @@ class ComputerAgent:
                 if not function:
                     raise ToolError(f"Function {item.get('name')} not found")
 
-                args = json.loads(item.get("arguments"))
+                args = robust_json_loads(item.get("arguments"))
 
                 # Handle BaseTool instances
                 if isinstance(function, BaseTool):
@@ -939,6 +973,9 @@ class ComputerAgent:
                 return result
         except ToolError as e:
             return [make_tool_error_item(repr(e), call_id)]
+        except Exception as e:
+            # Catch other execution exceptions (like missing arguments) and return as tool error
+            return [make_tool_error_item(f"{type(e).__name__}: {str(e)}", call_id)]
 
         return []
 
@@ -986,6 +1023,37 @@ class ComputerAgent:
             merged_kwargs["api_base"] = api_base if api_base is not None else self.api_base
 
         old_items = self._process_input(messages)
+
+        # Ensure we have an initial screenshot if none is provided and computer is available
+        def has_image(items):
+            for item in items:
+                if item.get("type") == "computer_call_output":
+                    out = item.get("output", {})
+                    if isinstance(out, dict) and out.get("type") == "input_image":
+                        return True
+                content = item.get("content")
+                if isinstance(content, list):
+                    for part in content:
+                        if isinstance(part, dict) and part.get("type") == "input_image":
+                            return True
+            return False
+
+        if not has_image(old_items) and self.computer_handler:
+            screenshot_base64 = await self.computer_handler.screenshot()
+            await self._on_screenshot(screenshot_base64, "initial_screenshot")
+            # Prepend the screenshot as a user message with image content
+            old_items.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:image/png;base64,{screenshot_base64}",
+                        }
+                    ],
+                }
+            )
+
         new_items = []
 
         # Initialize run tracking

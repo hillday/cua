@@ -103,7 +103,11 @@ def _configure_scaling(
 
 def _scale_to_actual(x: int, y: int) -> Tuple[int, int]:
     """Scale coordinates from target resolution to actual resolution."""
-    return int(x * _scale_x), int(y * _scale_y)
+    actual_x, actual_y = int(x * _scale_x), int(y * _scale_y)
+    logger.info(
+        f"🖱️ [物理转换] 输入Target({x}, {y}) -> 实际物理({actual_x}, {actual_y}) | 缩放系数: x={_scale_x:.3f}, y={_scale_y:.3f}"
+    )
+    return actual_x, actual_y
 
 
 def _scale_to_target(x: int, y: int) -> Tuple[int, int]:
