@@ -11,7 +11,9 @@
       "6. 点击进入符合要求的第一个帖子。",
       "7. 滚动到评论区，点击第一个评论旁边的点赞图标进行互动。",
       "8. （可选）按照要求继续浏览其他帖子或完成后续操作。"
-    ]
+    ],
+    "kb_dir": "vision_kb/xiaohongshu",
+    "kb_max_images": 6
   },
   "Github搜索": {
     "aliases": ["search_github", "搜索Github", "github"],
@@ -21,6 +23,8 @@
       "2. 访问 https://github.com/search。",
       "3. 在搜索框中输入查询内容并按回车。",
       "4. 点击最相关的搜索结果进入仓库页面。"
-    ]
+    ],
+    "kb_dir": "vision_kb/github",
+    "kb_max_images": 6
   }
 }

@@ -216,3 +216,5 @@ docs/scripts/check-all-links.py
 docs/scripts/check-mdx-links.py
 *.log
 tests/*.log
+tests/debug_runs/
+tests/debug_runs/*
