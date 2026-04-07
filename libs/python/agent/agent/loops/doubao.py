@@ -7,11 +7,8 @@ import asyncio
 import base64
 import json
 import logging
-import os
 import time
-from datetime import datetime
 from io import BytesIO
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import litellm
@@ -53,27 +50,6 @@ class DoubaoComputerAgentConfig:
     Converts back to 1024x768 target coordinates for Computer Server.
     """
 
-    def __init__(self):
-        # 创建调试截图保存目录
-        self.debug_dir = Path(os.getcwd()) / "debug_runs"
-        self.debug_dir.mkdir(exist_ok=True)
-
-    async def _save_debug_screenshot(self, image_b64: str, step_name: str) -> str:
-        """保存 Base64 截图到本地用于调试"""
-        try:
-            # 使用更精确的时间戳（包含毫秒），防止同一秒内的多张截图相互覆盖
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            filename = f"step_{timestamp}_{step_name}.png"
-            file_path = self.debug_dir / filename
-
-            image_data = base64.b64decode(image_b64)
-            with open(file_path, "wb") as f:
-                f.write(image_data)
-            return str(file_path)
-        except Exception as e:
-            logger.warning(f"Failed to save debug screenshot: {e}")
-            return ""
-
     async def predict_step(
         self,
         messages: List[Dict[str, Any]],
@@ -102,19 +78,6 @@ class DoubaoComputerAgentConfig:
             except Exception as e:
                 logger.warning(f"⚠️ [物理尺寸] 无法获取物理分辨率: {e}")
 
-        # 调试保存最新截图
-        found_latest = False
-        for msg in reversed(messages):
-            if found_latest:
-                break
-            if msg.get("role") == "user" and isinstance(msg.get("content"), list):
-                for part in msg["content"]:
-                    if part.get("type") == "input_image":
-                        image_b64 = part["image_url"].split(",")[-1]
-                        await self._save_debug_screenshot(image_b64, "predict_step")
-                        found_latest = True
-                        break
-
         # 2. Prepare tools for OpenAI-compatible API
         # 强制告诉模型屏幕是 1000x1000 (归一化空间)
         openai_tools = []
@@ -124,9 +87,9 @@ class DoubaoComputerAgentConfig:
                     "type": "function",
                     "name": "computer",
                     "description": (
-                        f"Use a mouse and keyboard to interact with a computer, and take screenshots.\n"
-                        f"Screen resolution: 1000x1000 units.\n"
-                        f"Environment: windows."
+                        "Use a mouse and keyboard to interact with a computer, and take screenshots.\n"
+                        "Screen resolution: 1000x1000 units.\n"
+                        "Environment: windows."
                     ),
                     "parameters": {
                         "type": "object",
@@ -232,8 +195,6 @@ class DoubaoComputerAgentConfig:
         self, model: str, image_b64: str, instruction: str, computer_handler=None, **kwargs
     ) -> Optional[Tuple[int, int]]:
         """Predict click coordinates specifically for Doubao with 1000x1000 scaling."""
-        await self._save_debug_screenshot(image_b64, "predict_click")
-
         # 获取真实物理尺寸用于还原
         physical_width, physical_height = 1024, 768
         if computer_handler and hasattr(computer_handler, "get_dimensions"):
